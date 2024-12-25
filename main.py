@@ -271,7 +271,7 @@ async def inline_search(query: InlineQuery):
             print(results.text)
             return await query.answer(
                 results=[],
-                cache_time=20,
+                cache_time=600,
                 is_personal=False
             )
         tracks = results.tracks.results[:4]
