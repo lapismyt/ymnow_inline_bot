@@ -202,6 +202,19 @@ async def get_current_track(client: ClientAsync, token: str):
         return {"success": False, "error": str(e), "track": None}
 
 
+@dp.message(F.text.startswith('@all') and F.from_user.id.in_({int(os.getenv('ADMIN_ID'))}))
+async def mail(message: Message):
+    # send same message to all users
+    text = message.html_text[4:]
+    # get all user ids
+    async with aiosqlite.connect('db.sqlite3') as db:
+        cursor = await db.cursor()
+        cursor.execute('SELECT id FROM users')
+        user_ids = [row[0] for row in await cursor.fetchall()]
+    for user_id in user_ids:
+        await bot.send_message(user_id, text, parse_mode='HTML')
+
+
 @dp.inline_query()
 async def inline_search(query: InlineQuery):
     usr = await handle_user(query.from_user.id)
