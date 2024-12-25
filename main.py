@@ -208,7 +208,7 @@ async def get_current_track(client: ClientAsync, token: str):
         return {"success": False, "error": str(e), "track": None}
 
 
-@dp.message(F.text.startswith('@all') and F.from_user.id == int(os.getenv('ADMIN_ID')))
+@dp.message(F.text.startswith('@all') & F.from_user.id == int(os.getenv('ADMIN_ID')))
 async def mail(message: Message):
     text = message.html_text[4:]
     async with aiosqlite.connect('db.sqlite3') as db:
