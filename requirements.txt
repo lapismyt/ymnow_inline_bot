@@ -3,3 +3,5 @@ yandex-music
 aiohttp
 aiosqlite
 python-dotenv
+ujson
+aiofiles

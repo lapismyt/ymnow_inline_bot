@@ -19,7 +19,7 @@ from aiogram.types import (
     BufferedInputFile
 )
 from aiogram.filters import Command, CommandStart
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter, TelegramAPIError
 
 from yandex_music import ClientAsync
 from yandex_music.exceptions import YandexMusicError
@@ -27,7 +27,8 @@ from yandex_music.exceptions import YandexMusicError
 import aiosqlite
 from dotenv import load_dotenv
 import aiohttp
-
+import aiofiles
+import ujson
 
 load_dotenv()
 
@@ -57,6 +58,11 @@ async def handle_user(user_id: int) -> dict:
         else:
             await cursor.execute(f'INSERT INTO users (id, ym_id, ym_token) VALUES ({user_id}, NULL, NULL)')
             await db.commit()
+            async with aiofiles.open('stats.json', 'r') as f:
+                stats = ujson.loads(await f.read())
+            stats['users'] += 1
+            async with aiofiles.open('stats.json', 'w') as f:
+                await f.write(ujson.dumps(stats))
             return {'id': user_id, 'ym_id': None, 'ym_token': None}
 
 
@@ -202,18 +208,21 @@ async def get_current_track(client: ClientAsync, token: str):
         return {"success": False, "error": str(e), "track": None}
 
 
-@dp.message(F.text.startswith('@all') and F.from_user.id.in_({int(os.getenv('ADMIN_ID'))}))
+@dp.message(F.text.startswith('@all') and F.from_user.id == int(os.getenv('ADMIN_ID')))
 async def mail(message: Message):
-    # send same message to all users
     text = message.html_text[4:]
-    # get all user ids
     async with aiosqlite.connect('db.sqlite3') as db:
         cursor = await db.cursor()
-        cursor.execute('SELECT id FROM users')
+        await cursor.execute('SELECT id FROM users')
         user_ids = [row[0] for row in await cursor.fetchall()]
     for user_id in user_ids:
-        await bot.send_message(user_id, text, parse_mode='HTML')
-
+        await asyncio.sleep(0.05)
+        try:
+            await bot.send_message(user_id, text, parse_mode='HTML')
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+        except TelegramAPIError as e:
+            pass
 
 @dp.inline_query()
 async def inline_search(query: InlineQuery):
@@ -237,6 +246,11 @@ async def inline_search(query: InlineQuery):
                 cache_time=20,
                 is_personal=True
             )
+        async with aiofiles.open('stats.json', 'r') as f:
+            stats = ujson.loads(await f.read())
+        stats['total_requests'] += 1
+        async with aiofiles.open('stats.json', 'w') as f:
+            await f.write(ujson.dumps(stats))
         client = await ClientAsync(token=usr['ym_token']).init()
         res = await get_current_track(client, usr['ym_token'])
         if not res['success']:
@@ -272,6 +286,11 @@ async def inline_search(query: InlineQuery):
             is_personal=True
         )
     else:
+        async with aiofiles.open('stats.json', 'r') as f:
+            stats = ujson.loads(await f.read())
+        stats['total_requests'] += 1
+        async with aiofiles.open('stats.json', 'w') as f:
+            await f.write(ujson.dumps(stats))
         client = await ClientAsync(token=os.getenv('DEFAULT_YM_TOKEN')).init()
         results = await client.search(query.query, type_='track')
         if not results:
@@ -435,7 +454,7 @@ async def main():
         await cursor.execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             ym_id TEXT,
-            ym_token TEXT
+            ym_token TEXT 
         )''')
     await dp.start_polling(bot)
 
