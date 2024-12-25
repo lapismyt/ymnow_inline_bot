@@ -1,0 +1,5 @@
+aiogram>=3.0.0
+yandex-music
+aiohttp
+aiosqlite
+python-dotenv
