@@ -315,7 +315,8 @@ async def inline_search(query: InlineQuery):
             track_id = track.track_id.split(':')[-1]
             dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
             url = await dlinfo.get_direct_link_async()
-            result_id = hashlib.md5(f'search:{track_id}'.encode()).hexdigest()
+            query_hash = hashlib.md5(query.query.encode()).hexdigest()
+            result_id = hashlib.md5(f'search:{query_hash}:{track_id}'.encode()).hexdigest()
             songlink = f'https://song.link/ya/{track_id}'
             song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
             bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
