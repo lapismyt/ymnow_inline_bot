@@ -273,7 +273,19 @@ async def inline_search(query: InlineQuery):
         if dlinfo is None:
             dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=192)
             if dlinfo is None:
-                continue
+                text = 'Не удалось найти играющий трек. Попробуйте позже.'
+                content = InputTextMessageContent(message_text=text, parse_mode='html')
+                result_id = hashlib.md5(f'now-error:{random.randint(0, 99999999)}'.encode()).hexdigest()
+                result = InlineQueryResultArticle(
+                    id=result_id,
+                    title='Ничего не найдено',
+                    input_message_content=content
+                )
+                return await query.answer(
+                    results=[result],
+                    cache_time=20,
+                    is_personal=True
+                )
         url = await dlinfo.get_direct_link_async()
         title = track['title']
         artists = ', '.join([artist['name'] for artist in track['artists']])
