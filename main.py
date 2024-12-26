@@ -236,7 +236,7 @@ async def inline_search(query: InlineQuery):
                    f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
                    f'<a href="https://yandex-music.readthedocs.io/en/main/token.html">🔮 Как получить токен 🔮</a>'
             content = InputTextMessageContent(message_text=text, parse_mode='html')
-            result_id = hashlib.md5(text.encode()).hexdigest()
+            result_id = hashlib.md5(f'no-token:{random.randint(0, 99999999)}'.encode()).hexdigest()
             result = InlineQueryResultArticle(
                 id=result_id,
                 title='Подключи токен Яндекс Музыки чтобы автоматически обнаруживать текущий трек',
@@ -255,6 +255,7 @@ async def inline_search(query: InlineQuery):
         client = await ClientAsync(token=usr['ym_token']).init()
         res = await get_current_track(client, usr['ym_token'])
         if not res['success']:
+            print('error:', res['error'])
             return await query.answer(
                 results=[],
                 cache_time=20,
