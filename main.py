@@ -5,6 +5,7 @@ import os
 import random
 import json
 import string
+import html
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -265,7 +266,7 @@ async def inline_search(query: InlineQuery):
         duration = track['duration_ms'] // 1000
         track_id = track['id']
         url = res['info'][0]['direct_link']
-        result_id = hashlib.md5(f'now:{track_id}'.encode()).hexdigest()
+        result_id = hashlib.md5(f'now:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
         songlink = f'https://song.link/ya/{track_id}'
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
         bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
@@ -277,7 +278,7 @@ async def inline_search(query: InlineQuery):
             audio_duration=duration,
             reply_markup=markup,
             audio_url=url,
-            caption=f'<b>Сейчас играет:</b>\n🎧 <code>{artists} - {title}</code>',
+            caption=f'<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
             performer=artists
         )
         return await query.answer(
@@ -316,7 +317,7 @@ async def inline_search(query: InlineQuery):
             dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
             url = await dlinfo.get_direct_link_async()
             query_hash = hashlib.md5(query.query.encode()).hexdigest()
-            result_id = hashlib.md5(f'search:{query_hash}:{track_id}'.encode()).hexdigest()
+            result_id = hashlib.md5(f'search:{query_hash}:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
             songlink = f'https://song.link/ya/{track_id}'
             song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
             bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
@@ -328,7 +329,7 @@ async def inline_search(query: InlineQuery):
                 audio_duration=duration,
                 reply_markup=markup,
                 audio_url=url,
-                caption=f'<b>Трек по запросу "<i>{results.text}</i>":</b>\n🎧 <code>{artists} - {title}</code>',
+                caption=f'<b>Трек по запросу "<i>{html.escape(results.text)}</i>":</b>\n🎧 <code>{artists} - {title}</code>',
                 performer=artists
             )
             outs.append(result)
