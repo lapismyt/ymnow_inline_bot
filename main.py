@@ -307,7 +307,7 @@ async def inline_search(query: InlineQuery):
                 cache_time=600,
                 is_personal=False
             )
-        tracks = results.tracks.results[:4]
+        tracks = results.tracks.results[:6]
         outs = []
         for track in tracks:
             title = track.title
@@ -315,6 +315,10 @@ async def inline_search(query: InlineQuery):
             duration = track.duration_ms // 1000
             track_id = track.track_id.split(':')[-1]
             dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
+            if dlinfo is None:
+                dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=192)
+                if dlinfo is None:
+                    continue
             url = await dlinfo.get_direct_link_async()
             query_hash = hashlib.md5(query.query.encode()).hexdigest()
             result_id = hashlib.md5(f'search:{query_hash}:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
