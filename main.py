@@ -333,7 +333,7 @@ async def inline_search(query: InlineQuery):
                 audio_duration=duration,
                 reply_markup=markup,
                 audio_url=url,
-                caption=f'<b>Трек по запросу "<i>{html.escape(results.text)}</i>":</b>\n🎧 <code>{artists} - {title}</code>',
+                caption=f'<b>Трек по запросу "<i>{html.escape(results.text)}</i>":</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
                 performer=artists
             )
             outs.append(result)
