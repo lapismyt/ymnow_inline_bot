@@ -255,9 +255,16 @@ async def inline_search(query: InlineQuery):
         client = await ClientAsync(token=usr['ym_token']).init()
         res = await get_current_track(client, usr['ym_token'])
         if not res['success']:
-            print('error:', res['error'])
+            text = 'Не удалось найти играющий трек. Попробуйте позже.'
+            content = InputTextMessageContent(message_text=text, parse_mode='html')
+            result_id = hashlib.md5(f'now-error:{random.randint(0, 99999999)}'.encode()).hexdigest()
+            result = InlineQueryResultArticle(
+                id=result_id,
+                title='Ничего не найдено',
+                input_message_content=content
+            )
             return await query.answer(
-                results=[],
+                results=[result],
                 cache_time=20,
                 is_personal=True
             )
