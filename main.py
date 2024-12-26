@@ -269,11 +269,17 @@ async def inline_search(query: InlineQuery):
                 is_personal=True
             )
         track = res['track'][0]
+        dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
+        if dlinfo is None:
+            dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=192)
+            if dlinfo is None:
+                continue
+        url = await dlinfo.get_direct_link_async()
         title = track['title']
         artists = ', '.join([artist['name'] for artist in track['artists']])
         duration = track['duration_ms'] // 1000
         track_id = track['id']
-        url = res['info'][0]['direct_link']
+        #url = res['info'][0]['direct_link']
         result_id = hashlib.md5(f'now:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
         songlink = f'https://song.link/ya/{track_id}'
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
