@@ -283,7 +283,7 @@ async def inline_search(query: InlineQuery):
                 )
                 return await query.answer(
                     results=[result],
-                    cache_time=20,
+                    cache_time=15,
                     is_personal=True
                 )
         url = await dlinfo.get_direct_link_async()
@@ -323,14 +323,14 @@ async def inline_search(query: InlineQuery):
         if not results:
             return await query.answer(
                 results=[],
-                cache_time=600,
+                cache_time=3600,
                 is_personal=False
             )
         if not results.tracks:
             print(results.text)
             return await query.answer(
                 results=[],
-                cache_time=600,
+                cache_time=3600,
                 is_personal=False
             )
         tracks = results.tracks.results[:6]
@@ -365,7 +365,7 @@ async def inline_search(query: InlineQuery):
             outs.append(result)
         return await query.answer(
             results=outs,
-            cache_time=600,
+            cache_time=86400,
             is_personal=False
         )
 
