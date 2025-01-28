@@ -290,6 +290,8 @@ async def inline_search(query: InlineQuery):
         title = track['title']
         artists = ', '.join([artist['name'] for artist in track['artists']])
         duration = track['duration_ms'] // 1000
+        print(res['progress_ms'])
+        progress = int(res['progress_ms']) // 1000
         track_id = track['id']
         #url = res['info'][0]['direct_link']
         result_id = hashlib.md5(f'now:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
