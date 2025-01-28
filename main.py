@@ -299,6 +299,7 @@ async def inline_search(query: InlineQuery):
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
         bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
         markup = InlineKeyboardMarkup(inline_keyboard=[[song_button], [bot_button]])
+        print(res['paused'])
         paused = '⏸️' if res['paused'] else '▶️'
         duration_str = f'{duration // 60}:{duration % 60:02}'
         progress_str = f'{progress // 60}:{progress % 60:02}'
