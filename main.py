@@ -313,7 +313,7 @@ async def inline_search(query: InlineQuery):
             audio_duration=duration,
             reply_markup=markup,
             audio_url=url,
-            caption=f'{paused} {progress_str}/{duration_str}\n\n<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
+            caption=f'<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
             performer=artists
         )
         return await query.answer(
