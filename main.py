@@ -271,6 +271,9 @@ async def inline_search(query: InlineQuery):
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
         bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
         markup = InlineKeyboardMarkup(inline_keyboard=[[song_button], [bot_button]])
+        paused = '⏸️' if res['paused'] else '▶️'
+        duration_str = f'{duration // 60}:{duration % 60:02}'
+        progress_str = f'{res["progress_ms"] // 60}:{res["progress_ms"] % 60:02}'
         result = InlineQueryResultAudio(
             id=result_id,
             title=title,
@@ -278,7 +281,7 @@ async def inline_search(query: InlineQuery):
             audio_duration=duration,
             reply_markup=markup,
             audio_url=url,
-            caption=f'<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
+            caption=f'{paused} {progress_str}/{duration_str}\n\n<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
             performer=artists
         )
         return await query.answer(
