@@ -236,7 +236,7 @@ async def inline_search(query: InlineQuery):
                    f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
                    f'<a href="https://yandex-music.readthedocs.io/en/main/token.html">🔮 Как получить токен 🔮</a>'
             content = InputTextMessageContent(message_text=text, parse_mode='html')
-            result_id = hashlib.md5(text.encode()).hexdigest()
+            result_id = hashlib.md5(f'no-token:{random.randint(0, 99999999)}'.encode()).hexdigest()
             result = InlineQueryResultArticle(
                 id=result_id,
                 title='Подключи токен Яндекс Музыки чтобы автоматически обнаруживать текущий трек',
@@ -255,17 +255,43 @@ async def inline_search(query: InlineQuery):
         client = await ClientAsync(token=usr['ym_token']).init()
         res = await get_current_track(client, usr['ym_token'])
         if not res['success']:
+            text = 'Не удалось найти играющий трек. Попробуйте позже.'
+            content = InputTextMessageContent(message_text=text, parse_mode='html')
+            result_id = hashlib.md5(f'now-error:{random.randint(0, 99999999)}'.encode()).hexdigest()
+            result = InlineQueryResultArticle(
+                id=result_id,
+                title='Ничего не найдено',
+                input_message_content=content
+            )
             return await query.answer(
-                results=[],
+                results=[result],
                 cache_time=20,
                 is_personal=True
             )
         track = res['track'][0]
+        dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
+        if dlinfo is None:
+            dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=192)
+            if dlinfo is None:
+                text = 'Не удалось найти играющий трек. Попробуйте позже.'
+                content = InputTextMessageContent(message_text=text, parse_mode='html')
+                result_id = hashlib.md5(f'now-error:{random.randint(0, 99999999)}'.encode()).hexdigest()
+                result = InlineQueryResultArticle(
+                    id=result_id,
+                    title='Ничего не найдено',
+                    input_message_content=content
+                )
+                return await query.answer(
+                    results=[result],
+                    cache_time=15,
+                    is_personal=True
+                )
+        url = await dlinfo.get_direct_link_async()
         title = track['title']
         artists = ', '.join([artist['name'] for artist in track['artists']])
         duration = track['duration_ms'] // 1000
         track_id = track['id']
-        url = res['info'][0]['direct_link']
+        #url = res['info'][0]['direct_link']
         result_id = hashlib.md5(f'now:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
         songlink = f'https://song.link/ya/{track_id}'
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
@@ -300,14 +326,14 @@ async def inline_search(query: InlineQuery):
         if not results:
             return await query.answer(
                 results=[],
-                cache_time=600,
+                cache_time=3600,
                 is_personal=False
             )
         if not results.tracks:
             print(results.text)
             return await query.answer(
                 results=[],
-                cache_time=600,
+                cache_time=3600,
                 is_personal=False
             )
         tracks = results.tracks.results[:6]
@@ -342,7 +368,7 @@ async def inline_search(query: InlineQuery):
             outs.append(result)
         return await query.answer(
             results=outs,
-            cache_time=600,
+            cache_time=86400,
             is_personal=False
         )
 
@@ -392,8 +418,8 @@ async def start(message: Message):
             f'Теперь в любом чате ты можешь написать (не отправляя) <code>@{me.username} </code>, '
             f'подождать пару секунд и там появится трек, который сейчас играет у тебя.\n\n'
             f'Ты всё ещё можешь пользоваться поиском, '
-            'просто напиши <code>@{me.username} [запрос]</code> и подожди несколько секунд.\n\n'
-            'Если захочешь удалить свой токен из базы данных бота, используй команду /reset.',
+            f'просто напиши <code>@{me.username} [запрос]</code> и подожди несколько секунд.\n\n'
+            f'Если захочешь удалить свой токен из базы данных бота, используй команду /reset.',
             reply_markup=markup,
             parse_mode='html'
         )
@@ -404,12 +430,12 @@ async def reset_token(message: Message):
     usr = await handle_user(message.from_user.id)
     await update_user(usr['id'], {'ym_token': None, 'ym_id': None})
     await message.answer(
-        '<b>Готово ✅</b>\n'
-        'Твой токен и ID стёрты из базы данных бота и больше не смогут использоваться.\n'
-        'Это полезно если ты больше не хочешь пользоваться ботом, на случай если например бота взломают, или '
-        'создатель сойдёт с ума и начнёт делать что-то плохое.\n'
-        'Если захочешь продолжить пользоваться функцией распознавания текущего трека, '
-        'тебе надо будет снова добавить свой токен.',
+        f'<b>Готово ✅</b>\n'
+        f'Твой токен и ID стёрты из базы данных бота и больше не смогут использоваться.\n'
+        f'Это полезно если ты больше не хочешь пользоваться ботом, на случай если например бота взломают, или '
+        f'создатель сойдёт с ума и начнёт делать что-то плохое.\n'
+        f'Если захочешь продолжить пользоваться функцией распознавания текущего трека, '
+        f'тебе надо будет снова добавить свой токен.',
         parse_mode='html'
     )
 
