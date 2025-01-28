@@ -301,7 +301,7 @@ async def inline_search(query: InlineQuery):
         markup = InlineKeyboardMarkup(inline_keyboard=[[song_button], [bot_button]])
         paused = '⏸️' if res['paused'] else '▶️'
         duration_str = f'{duration // 60}:{duration % 60:02}'
-        progress_str = f'{res["progress_ms"] // 60}:{res["progress_ms"] % 60:02}'
+        progress_str = f'{progress // 60}:{progress % 60:02}'
         result = InlineQueryResultAudio(
             id=result_id,
             title=title,
