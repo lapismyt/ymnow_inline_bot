@@ -327,7 +327,7 @@ async def inline_search(query: InlineQuery):
         stats['total_requests'] += 1
         async with aiofiles.open('stats.json', 'w') as f:
             await f.write(ujson.dumps(stats))
-        client = await ClientAsync(token=os.getenv('DEFAULT_YM_TOKEN')).init()
+        client = await ClientAsync(token=(usr['ym_token'] or os.getenv('DEFAULT_YM_TOKEN'))).init()
         results = await client.search(query.query, type_='track')
         if not results:
             return await query.answer(
