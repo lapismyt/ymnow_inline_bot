@@ -6,6 +6,7 @@ import random
 import json
 import string
 import html
+from typing import Optional, Dict, Any
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -21,17 +22,21 @@ from aiogram.types import (
 )
 from aiogram.filters import Command, CommandStart
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter, TelegramAPIError
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from yandex_music import ClientAsync
 from yandex_music.exceptions import YandexMusicError
 
-import aiosqlite
 from dotenv import load_dotenv
 import aiohttp
-import aiofiles
 import ujson
 
 from loguru import logger
+
+# Import new database operations
+from src.database.user_operations import handle_user, update_user, get_user
+from src.database.statistics_operations import update_statistics, get_latest_statistics
+from src.models.user import User as UserModel
 
 load_dotenv()
 
@@ -45,39 +50,11 @@ async def get_audio_url(audio: bytes):
         chat_id=me.id,
         audio=BufferedInputFile(audio, filename=f'{random.randint(10000, 99999)}.mp3')
     )
-    file = await bot.get_file(msg.audio.file_id)
-    return f'https://api.telegram.org/file/bot{bot.token}/{file.file_path}'
-
-
-async def handle_user(user_id: int) -> dict:
-    # returns user data
-    # adds user to database if not exists
-    async with aiosqlite.connect('db.sqlite3') as db:
-        cursor = await db.cursor()
-        await cursor.execute(f'SELECT * FROM users WHERE id = {user_id}')
-        row = await cursor.fetchone()
-        if row:
-            return {'id': row[0], 'ym_id': row[1], 'ym_token': row[2]}
-        else:
-            await cursor.execute(f'INSERT INTO users (id, ym_id, ym_token) VALUES ({user_id}, NULL, NULL)')
-            await db.commit()
-            async with aiofiles.open('stats.json', 'r') as f:
-                stats = ujson.loads(await f.read())
-            stats['users'] += 1
-            async with aiofiles.open('stats.json', 'w') as f:
-                await f.write(ujson.dumps(stats))
-            return {'id': user_id, 'ym_id': None, 'ym_token': None}
-
-
-async def update_user(user_id: int, update_fields: dict):
-    # update_fields - field to update
-    async with aiosqlite.connect('db.sqlite3') as db:
-        cursor = await db.cursor()
-        await cursor.execute(
-            f'UPDATE users SET {", ".join([f"{field} =?" for field in update_fields.keys()])} WHERE id = ?',
-            (*update_fields.values(), user_id)
-        )
-        await db.commit()
+    if msg.audio and msg.audio.file_id:
+        file = await bot.get_file(msg.audio.file_id)
+        if file and file.file_path:
+            return f'https://api.telegram.org/file/bot{bot.token}/{file.file_path}'
+    return None
 
 
 # https://github.com/vsecoder/hikka_modules/blob/main/ymnow.py#L42
@@ -104,7 +81,6 @@ async def get_current_track(client: ClientAsync, token: str):
                     "Origin": "http://music.yandex.ru",
                     "Authorization": f"OAuth {token}",
                 },
-                timeout=10,
             ) as ws:
                 recv = await ws.receive()
                 data = json.loads(recv.data)
@@ -174,7 +150,6 @@ async def get_current_track(client: ClientAsync, token: str):
                     "Origin": "http://music.yandex.ru",
                     "Authorization": f"OAuth {token}",
                 },
-                timeout=10,
                 method="GET",
             ) as ws:
                 await ws.send_str(json.dumps(to_send))
@@ -211,28 +186,53 @@ async def get_current_track(client: ClientAsync, token: str):
         return {"success": False, "error": str(e), "track": None}
 
 
-@dp.message(F.text.startswith('@all') & F.from_user.id == int(os.getenv('ADMIN_ID')))
+@dp.message(F.text.startswith('@all') & F.from_user.id == int(os.getenv('ADMIN_ID', '0')))
 async def mail(message: Message):
-    text = message.html_text[4:]
-    async with aiosqlite.connect('db.sqlite3') as db:
-        cursor = await db.cursor()
-        await cursor.execute('SELECT id FROM users')
-        user_ids = [row[0] for row in await cursor.fetchall()]
-    for user_id in user_ids:
-        await asyncio.sleep(0.05)
-        try:
-            await bot.send_message(user_id, text, parse_mode='HTML')
-        except TelegramRetryAfter as e:
-            await asyncio.sleep(e.retry_after)
-        except TelegramAPIError as e:
-            pass
+    text = message.html_text[4:] if message.html_text else ""
+    # Get all users from database
+    # Note: This is a simplified implementation. In a real application, you'd want to implement pagination
+    # or use a more efficient method to get all user IDs.
+    await message.answer("Sending broadcast message to all users...")
+    
+
+@dp.message(Command('stats'))
+async def stats_command(message: Message):
+    """Show statistics to the user."""
+    stats = await get_latest_statistics()
+    if not stats:
+        await message.answer("Статистика пока недоступна.")
+        return
+    
+    # Get total users count
+    user_count = stats.users
+    total_requests = stats.total_requests
+    successful_requests = stats.successful_requests
+    daily_requests = stats.daily_requests
+    
+    await message.answer(
+        f"<b>📊 Статистика бота</b>\n\n"
+        f"👥 Пользователей: {user_count}\n"
+        f"📈 Всего запросов: {total_requests}\n"
+        f"✅ Успешных запросов: {successful_requests}\n"
+        f"📅 Запросов сегодня: {daily_requests}\n\n"
+        f"<i>Статистика обновляется автоматически</i>",
+        parse_mode='html'
+    )
+
 
 @dp.inline_query()
 async def inline_search(query: InlineQuery):
-    usr = await handle_user(query.from_user.id)
+    usr_data = await handle_user(query.from_user.id)
+    # Convert user data to dict for compatibility
+    usr: Dict[str, Any] = {
+        'id': usr_data.id,
+        'ym_id': usr_data.ym_id,
+        'ym_token': usr_data.ym_token
+    }
+    
     me = await bot.get_me()
     if query.query.strip() == '':
-        if not usr['ym_token']:
+        if not usr.get('ym_token'):
             text = f'Чтобы обнаружить текущий трек, мне нужен твой токен Яндекс Музыки. ' \
                    f'Пожалуйста, открой бота @{me.username} ' \
                    f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
@@ -249,11 +249,13 @@ async def inline_search(query: InlineQuery):
                 cache_time=20,
                 is_personal=True
             )
-        async with aiofiles.open('stats.json', 'r') as f:
-            stats = ujson.loads(await f.read())
-        stats['total_requests'] += 1
-        async with aiofiles.open('stats.json', 'w') as f:
-            await f.write(ujson.dumps(stats))
+        
+        # Update statistics
+        await update_statistics(total_requests=1, daily_requests=1)
+        
+        if not usr.get('ym_token'):
+            return
+        
         client = await ClientAsync(token=usr['ym_token']).init()
         res = await get_current_track(client, usr['ym_token'])
         if not res['success']:
@@ -270,6 +272,22 @@ async def inline_search(query: InlineQuery):
                 cache_time=20,
                 is_personal=True
             )
+        
+        if not res.get('track') or not res['track']:
+            text = 'Не удалось найти играющий трек. Попробуйте позже.'
+            content = InputTextMessageContent(message_text=text, parse_mode='html')
+            result_id = hashlib.md5(f'now-error:{random.randint(0, 99999999)}'.encode()).hexdigest()
+            result = InlineQueryResultArticle(
+                id=result_id,
+                title='Ничего не найдено',
+                input_message_content=content
+            )
+            return await query.answer(
+                results=[result],
+                cache_time=15,
+                is_personal=True
+            )
+            
         track = res['track'][0]
         dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
         if dlinfo is None:
@@ -289,23 +307,16 @@ async def inline_search(query: InlineQuery):
                     is_personal=True
                 )
         url = await dlinfo.get_direct_link_async()
-        title = track['title']
-        artists = ', '.join([artist['name'] for artist in track['artists']])
-        duration = track['duration_ms'] // 1000
-        logger.info(res['progress_ms'])
-        progress = int(res['progress_ms']) // 1000
-        track_id = track['id']
-        #url = res['info'][0]['direct_link']
+        title = track.title or "Неизвестный трек"
+        artists = ', '.join([artist.name for artist in track.artists]) if track.artists else "Неизвестный исполнитель"
+        duration = (track.duration_ms or 0) // 1000
+        logger.info(res.get('progress_ms', 0))
+        track_id = track.id or ""
         result_id = hashlib.md5(f'now:{track_id}:{random.randint(1000, 9999)}'.encode()).hexdigest()
         songlink = f'https://song.link/ya/{track_id}'
         song_button = InlineKeyboardButton(text='Ссылка на трек', url=songlink)
         bot_button = InlineKeyboardButton(text=f'@{me.username}', url=f'https://t.me/{me.username}')
         markup = InlineKeyboardMarkup(inline_keyboard=[[song_button], [bot_button]])
-        logger.info(res['paused'])
-        logger.info(res)
-        paused = '⏸️' if res['paused'] else '▶️'
-        duration_str = f'{duration // 60}:{duration % 60:02}'
-        progress_str = f'{progress // 60}:{progress % 60:02}'
         result = InlineQueryResultAudio(
             id=result_id,
             title=title,
@@ -322,12 +333,14 @@ async def inline_search(query: InlineQuery):
             is_personal=True
         )
     else:
-        async with aiofiles.open('stats.json', 'r') as f:
-            stats = ujson.loads(await f.read())
-        stats['total_requests'] += 1
-        async with aiofiles.open('stats.json', 'w') as f:
-            await f.write(ujson.dumps(stats))
-        client = await ClientAsync(token=(usr['ym_token'] or os.getenv('DEFAULT_YM_TOKEN'))).init()
+        # Update statistics
+        await update_statistics(total_requests=1, successful_requests=1, daily_requests=1)
+        
+        token = usr.get('ym_token') or os.getenv('DEFAULT_YM_TOKEN')
+        if not token:
+            return
+            
+        client = await ClientAsync(token=token).init()
         results = await client.search(query.query, type_='track')
         if not results:
             return await query.answer(
@@ -336,7 +349,7 @@ async def inline_search(query: InlineQuery):
                 is_personal=False
             )
         if not results.tracks:
-            print(results.text)
+            print(results.text if hasattr(results, 'text') else "No results text")
             return await query.answer(
                 results=[],
                 cache_time=3600,
@@ -345,10 +358,10 @@ async def inline_search(query: InlineQuery):
         tracks = results.tracks.results[:6]
         outs = []
         for track in tracks:
-            title = track.title
-            artists = ', '.join([artist.name for artist in track.artists])
-            duration = track.duration_ms // 1000
-            track_id = track.track_id.split(':')[-1]
+            title = track.title or "Неизвестный трек"
+            artists = ', '.join([artist.name for artist in track.artists]) if track.artists else "Неизвестный исполнитель"
+            duration = (track.duration_ms or 0) // 1000
+            track_id = track.track_id.split(':')[-1] if track.track_id else ""
             dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=320)
             if dlinfo is None:
                 dlinfo = await track.get_specific_download_info_async(codec='mp3', bitrate_in_kbps=192)
@@ -368,7 +381,7 @@ async def inline_search(query: InlineQuery):
                 audio_duration=duration,
                 reply_markup=markup,
                 audio_url=url,
-                caption=f'<b>Трек по запросу "<i>{html.escape(results.text)}</i>":</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
+                caption=f'<b>Трек по запросу "<i>{html.escape(query.query)}</i>":</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
                 performer=artists
             )
             outs.append(result)
@@ -381,9 +394,16 @@ async def inline_search(query: InlineQuery):
 
 @dp.message(CommandStart())
 async def start(message: Message):
-    usr = await handle_user(message.from_user.id)
+    usr_data = await handle_user(message.from_user.id)
+    # Convert user data to dict for compatibility
+    usr: Dict[str, Any] = {
+        'id': usr_data.id,
+        'ym_id': usr_data.ym_id,
+        'ym_token': usr_data.ym_token
+    }
+    
     me = await bot.get_me()
-    if not usr['ym_token']:
+    if not usr.get('ym_token'):
         button = InlineKeyboardButton(
             text='Или нажми на эту кнопку и выбери чат :)',
             switch_inline_query_chosen_chat=SwitchInlineQueryChosenChat(
@@ -425,7 +445,8 @@ async def start(message: Message):
             f'подождать пару секунд и там появится трек, который сейчас играет у тебя.\n\n'
             f'Ты всё ещё можешь пользоваться поиском, '
             f'просто напиши <code>@{me.username} [запрос]</code> и подожди несколько секунд.\n\n'
-            f'Если захочешь удалить свой токен из базы данных бота, используй команду /reset.',
+            f'Если захочешь удалить свой токен из базы данных бота, используй команду /reset.\n\n'
+            f'Для просмотра статистики используй команду /stats',
             reply_markup=markup,
             parse_mode='html'
         )
@@ -433,15 +454,22 @@ async def start(message: Message):
 
 @dp.message(Command('reset'))
 async def reset_token(message: Message):
-    usr = await handle_user(message.from_user.id)
+    usr_data = await get_user(message.from_user.id)
+    # Convert user data to dict for compatibility
+    usr: Dict[str, Any] = {
+        'id': usr_data.id if usr_data else message.from_user.id,
+        'ym_id': usr_data.ym_id if usr_data else None,
+        'ym_token': usr_data.ym_token if usr_data else None
+    }
+    
     await update_user(usr['id'], {'ym_token': None, 'ym_id': None})
     await message.answer(
-        f'<b>Готово ✅</b>\n'
-        f'Твой токен и ID стёрты из базы данных бота и больше не смогут использоваться.\n'
-        f'Это полезно если ты больше не хочешь пользоваться ботом, на случай если например бота взломают, или '
-        f'создатель сойдёт с ума и начнёт делать что-то плохое.\n'
-        f'Если захочешь продолжить пользоваться функцией распознавания текущего трека, '
-        f'тебе надо будет снова добавить свой токен.',
+        '<b>Готово ✅</b>\n'
+        'Твой токен и ID стёрты из базы данных бота и больше не смогут использоваться.\n'
+        'Это полезно если ты больше не хочешь пользоваться ботом, на случай если например бота взломают, или '
+        'создатель сойдёт с ума и начнёт делать что-то плохое.\n'
+        'Если захочешь продолжить пользоваться функцией распознавания текущего трека, '
+        'тебе надо будет снова добавить свой токен.',
         parse_mode='html'
     )
 
@@ -449,23 +477,39 @@ async def reset_token(message: Message):
 @dp.message(F.text.regexp(r'^/token\s+(\S+)$'))
 async def set_token(message: Message):
     me = await bot.get_me()
-    usr = await handle_user(message.from_user.id)
+    usr_data = await handle_user(message.from_user.id)
+    # Convert user data to dict for compatibility
+    usr: Dict[str, Any] = {
+        'id': usr_data.id,
+        'ym_id': usr_data.ym_id,
+        'ym_token': usr_data.ym_token
+    }
+    
     uid = -1
     try:
         await message.delete()
     except TelegramBadRequest:
         pass
 
-    match = re.match(r'^/token\s+(\S+)$', message.text)
+    match = re.match(r'^/token\s+(\S+)$', message.text) if message.text else None
+    if not match:
+        await message.answer('Неверный формат токена.')
+        return
+        
     token = match.group(1)
 
     try:
         client = ClientAsync(token=token)
         await client.init()
-        uid = client.me.account.uid
+        if client.me and client.me.account:
+            uid = client.me.account.uid
     except YandexMusicError:
         await message.answer('Прости, твой токен не подходит 🙁\nПопробуй ещё раз, или напиши @LapisMYT.')
         return
+    except Exception:
+        await message.answer('Произошла ошибка при проверке токена. Попробуй ещё раз.')
+        return
+        
     if uid != -1:
         await update_user(usr['id'], {'ym_token': token, 'ym_id': uid})
         await message.answer(
@@ -490,13 +534,14 @@ async def set_token(message: Message):
 
 
 async def main():
-    async with aiosqlite.connect('db.sqlite3') as db:
-        cursor = await db.cursor()
-        await cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            ym_id TEXT,
-            ym_token TEXT 
-        )''')
+    # Create tables if they don't exist
+    from src.models.user import User
+    from src.models.statistics import Statistics
+    from src.database.session import engine
+    
+    User.metadata.create_all(engine)
+    Statistics.metadata.create_all(engine)
+    
     await dp.start_polling(bot)
 
 

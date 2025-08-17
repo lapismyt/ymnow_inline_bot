@@ -1,0 +1,15 @@
+[project]
+name = "ymnow-inline-bot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiogram>=3.22.0",
+    "aiohttp>=3.12.15",
+    "loguru>=0.7.3",
+    "psycopg2-binary>=2.9.10",
+    "python-dotenv>=1.1.1",
+    "sqlmodel>=0.0.24",
+    "yandex-music>=2.2.0",
+]
