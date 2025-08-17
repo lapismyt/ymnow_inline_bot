@@ -1,5 +1,5 @@
-from src.models.user import User
-from src.database.session import get_session
+from ..models.user import User
+from ..database.session import get_session
 from sqlmodel import select
 from typing import Optional
 

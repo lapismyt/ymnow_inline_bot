@@ -5,9 +5,9 @@ import sys
 # Add the parent directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from models.user import User
-from models.statistics import Statistics
-from database.session import engine
+from ..models.user import User
+from ..models.statistics import Statistics
+from ..database.session import engine
 from sqlmodel import Session, select
 
 

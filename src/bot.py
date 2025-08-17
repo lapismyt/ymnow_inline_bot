@@ -34,9 +34,9 @@ import ujson
 from loguru import logger
 
 # Import new database operations
-from src.database.user_operations import handle_user, update_user, get_user
-from src.database.statistics_operations import update_statistics, get_latest_statistics
-from src.models.user import User as UserModel
+from .database.user_operations import handle_user, update_user, get_user
+from .database.statistics_operations import update_statistics, get_latest_statistics
+from .models.user import User as UserModel
 
 load_dotenv()
 

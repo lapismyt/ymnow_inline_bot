@@ -1,5 +1,5 @@
-from src.models.statistics import Statistics
-from src.database.session import get_session
+from ..models.statistics import Statistics
+from ..database.session import get_session
 from sqlmodel import select
 from typing import Optional
 from datetime import datetime
