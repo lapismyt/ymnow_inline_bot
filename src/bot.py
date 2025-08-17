@@ -29,7 +29,6 @@ from yandex_music.exceptions import YandexMusicError
 
 from dotenv import load_dotenv
 import aiohttp
-import ujson
 
 from loguru import logger
 
