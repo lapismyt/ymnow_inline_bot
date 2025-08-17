@@ -1,7 +1,7 @@
 from ..models.user import User
 from ..database.session import get_session
 from sqlmodel import select
-from typing import Optional
+from typing import Optional, List
 
 
 async def get_user(user_id: int) -> Optional[User]:
@@ -10,6 +10,14 @@ async def get_user(user_id: int) -> Optional[User]:
         statement = select(User).where(User.id == user_id)
         result = session.exec(statement)
         return result.first()
+
+
+async def get_all_users() -> List[User]:
+    """Get all users from the database."""
+    with next(get_session()) as session:
+        statement = select(User)
+        result = session.exec(statement)
+        return result.all()
 
 
 async def create_user(user_id: int) -> User:

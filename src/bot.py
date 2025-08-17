@@ -188,10 +188,51 @@ async def get_current_track(client: ClientAsync, token: str):
 @dp.message(F.text.startswith('@all') & F.from_user.id == int(os.getenv('ADMIN_ID', '0')))
 async def mail(message: Message):
     text = message.html_text[4:] if message.html_text else ""
+    if not text:
+        await message.answer("Please provide a message to broadcast.")
+        return
+    
     # Get all users from database
-    # Note: This is a simplified implementation. In a real application, you'd want to implement pagination
-    # or use a more efficient method to get all user IDs.
-    await message.answer("Sending broadcast message to all users...")
+    from src.database.user_operations import get_all_users
+    users = await get_all_users()
+    
+    if not users:
+        await message.answer("No users found to broadcast to.")
+        return
+    
+    # Send confirmation to admin
+    await message.answer(f"Sending broadcast message to {len(users)} users...")
+    
+    # Send message to all users
+    success_count = 0
+    fail_count = 0
+    
+    for user in users:
+        try:
+            await bot.send_message(user.id, text, parse_mode='HTML')
+            success_count += 1
+            # Add a small delay to avoid hitting rate limits
+            await asyncio.sleep(0.05)
+        except TelegramRetryAfter as e:
+            # Handle rate limiting
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.send_message(user.id, text, parse_mode='HTML')
+                success_count += 1
+            except Exception:
+                fail_count += 1
+        except TelegramAPIError:
+            fail_count += 1
+        except Exception:
+            fail_count += 1
+    
+    # Send summary to admin
+    await message.answer(
+        f"Broadcast completed:\n"
+        f"✅ Successful: {success_count}\n"
+        f"❌ Failed: {fail_count}\n"
+        f"📊 Total: {len(users)}"
+    )
     
 
 @dp.message(Command('stats'))
