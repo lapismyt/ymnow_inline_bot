@@ -252,7 +252,7 @@ async def inline_search(query: InlineQuery):
                 is_personal=True
             )
         
-        # Update statistics
+        # Update statistics for total requests
         await update_statistics(total_requests=1, daily_requests=1)
         
         if not usr.get('ym_token'):
@@ -329,6 +329,8 @@ async def inline_search(query: InlineQuery):
             caption=f'<b>Сейчас играет:</b>\n🎧 <code>{html.escape(artists)} - {html.escape(title)}</code>',
             performer=artists
         )
+        # Update statistics for successful requests
+        await update_statistics(successful_requests=1)
         return await query.answer(
             results=[result],
             cache_time=5,
