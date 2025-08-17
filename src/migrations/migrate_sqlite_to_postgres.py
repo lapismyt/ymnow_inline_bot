@@ -54,7 +54,6 @@ def migrate_statistics(stats_file: str = "stats.json"):
             stats_data = json.load(f)
         
         total_requests = stats_data.get("total_requests", 0)
-        users = stats_data.get("users", 0)
         
         # Insert statistics into PostgreSQL
         with Session(engine) as session:
@@ -64,15 +63,20 @@ def migrate_statistics(stats_file: str = "stats.json"):
             stats = result.all()
             
             if not stats:
+                # Get actual user count from the users table
+                user_statement = select(User)
+                user_result = session.exec(user_statement)
+                user_count = len(user_result.all())
+                
                 stats = Statistics(
                     total_requests=total_requests,
                     successful_requests=total_requests,  # Assume all requests were successful for migration
-                    users=users,
+                    users=user_count,
                     daily_requests=0  # Reset daily requests for migration
                 )
                 session.add(stats)
                 session.commit()
-                print(f"Migrated statistics: {total_requests} requests, {users} users")
+                print(f"Migrated statistics: {total_requests} requests, {user_count} users")
             else:
                 print("Statistics already exist in PostgreSQL, skipping migration")
 

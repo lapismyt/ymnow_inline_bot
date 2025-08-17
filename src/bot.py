@@ -197,13 +197,16 @@ async def mail(message: Message):
 @dp.message(Command('stats'))
 async def stats_command(message: Message):
     """Show statistics to the user."""
+    from src.database.statistics_operations import get_user_count
+    
     stats = await get_latest_statistics()
+    # Get actual user count from database
+    user_count = await get_user_count()
+    
     if not stats:
         await message.answer("Статистика пока недоступна.")
         return
     
-    # Get total users count
-    user_count = stats.users
     total_requests = stats.total_requests
     successful_requests = stats.successful_requests
     daily_requests = stats.daily_requests

@@ -1,8 +1,17 @@
 from ..models.statistics import Statistics
+from ..models.user import User
 from ..database.session import get_session
 from sqlmodel import select
 from typing import Optional
 from datetime import datetime
+
+
+async def get_user_count() -> int:
+    """Get the total number of users from the database."""
+    with next(get_session()) as session:
+        statement = select(User)
+        result = session.exec(statement)
+        return len(result.all())
 
 
 async def get_latest_statistics() -> Optional[Statistics]:
@@ -20,10 +29,12 @@ async def get_latest_statistics() -> Optional[Statistics]:
 async def create_statistics(total_requests: int = 0, successful_requests: int = 0, users: int = 0, daily_requests: int = 0) -> Statistics:
     """Create a new statistics record."""
     with next(get_session()) as session:
+        # Get actual user count from database
+        user_count = await get_user_count()
         stats = Statistics(
             total_requests=total_requests,
             successful_requests=successful_requests,
-            users=users,
+            users=user_count,
             daily_requests=daily_requests
         )
         session.add(stats)
@@ -41,7 +52,9 @@ async def update_statistics(total_requests: int = 0, successful_requests: int = 
         with next(get_session()) as session:
             stats.total_requests += total_requests
             stats.successful_requests += successful_requests
-            stats.users += users
+            # Only update user count when a new user is added
+            if users > 0:
+                stats.users += users
             stats.daily_requests += daily_requests
             session.add(stats)
             session.commit()
