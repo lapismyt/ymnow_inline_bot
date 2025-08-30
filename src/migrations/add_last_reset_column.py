@@ -27,19 +27,21 @@ def add_last_reset_column():
     try:
         # Create a session
         with Session(engine) as session:
-            # Check if the column already exists by trying to query it
+            # Check if the column already exists by querying the information schema
             try:
-                # Try to query the last_reset column
-                result = session.execute(text("SELECT last_reset FROM statistics LIMIT 1"))
-                print("Column 'last_reset' already exists in 'statistics' table.")
-                return True
-            except OperationalError as e:
-                if "column" in str(e).lower() and "last_reset" in str(e).lower():
-                    # Column doesn't exist, we need to add it
-                    pass
-                else:
-                    # Some other error
-                    raise e
+                result = session.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='statistics' AND column_name='last_reset'
+                """))
+                rows = result.fetchall()
+                
+                if rows:
+                    print("Column 'last_reset' already exists in 'statistics' table.")
+                    return True
+            except Exception as e:
+                # If we can't check, we'll try to add the column
+                pass
             
             # Add the last_reset column
             print("Adding 'last_reset' column to 'statistics' table...")
@@ -65,8 +67,14 @@ def add_last_reset_column():
         return True
         
     except Exception as e:
-        print(f"Error adding 'last_reset' column: {e}")
-        return False
+        # Check if it's a duplicate column error
+        error_str = str(e).lower()
+        if "duplicate column" in error_str or "column" in error_str and "already exists" in error_str:
+            print("Column 'last_reset' already exists in 'statistics' table.")
+            return True
+        else:
+            print(f"Error adding 'last_reset' column: {e}")
+            return False
 
 def main():
     """Main function to run the migration."""
