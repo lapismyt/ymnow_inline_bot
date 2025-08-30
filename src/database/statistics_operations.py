@@ -3,7 +3,7 @@ from ..models.user import User
 from ..database.session import get_session
 from sqlmodel import select
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 
 async def get_user_count() -> int:
@@ -35,12 +35,34 @@ async def create_statistics(total_requests: int = 0, successful_requests: int = 
             total_requests=total_requests,
             successful_requests=successful_requests,
             users=user_count,
-            daily_requests=daily_requests
+            daily_requests=daily_requests,
+            last_reset=datetime.utcnow()
         )
         session.add(stats)
         session.commit()
         session.refresh(stats)
         return stats
+
+
+async def reset_daily_if_needed(stats: Statistics) -> bool:
+    """Reset daily requests if the day has changed. Returns True if reset was performed."""
+    if not stats.last_reset:
+        return False
+    
+    # Check if the last reset was today
+    last_reset_date = stats.last_reset.date()
+    today = date.today()
+    
+    if last_reset_date < today:
+        # Reset daily requests
+        with next(get_session()) as session:
+            stats.daily_requests = 0
+            stats.last_reset = datetime.utcnow()
+            session.add(stats)
+            session.commit()
+            session.refresh(stats)
+        return True
+    return False
 
 
 async def update_statistics(total_requests: int = 0, successful_requests: int = 0, users: int = 0, daily_requests: int = 0) -> Statistics:
@@ -50,6 +72,9 @@ async def update_statistics(total_requests: int = 0, successful_requests: int = 
         stats = await create_statistics(total_requests, successful_requests, users, daily_requests)
     else:
         with next(get_session()) as session:
+            # Check if we need to reset daily requests
+            await reset_daily_if_needed(stats)
+            
             stats.total_requests += total_requests
             stats.successful_requests += successful_requests
             # Only update user count when a new user is added

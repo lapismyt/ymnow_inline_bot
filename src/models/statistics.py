@@ -9,4 +9,5 @@ class Statistics(SQLModel, table=True):
     successful_requests: int = Field(default=0)
     users: int = Field(default=0)
     daily_requests: int = Field(default=0)
+    last_reset: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)

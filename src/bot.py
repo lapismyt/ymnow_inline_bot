@@ -7,6 +7,7 @@ import json
 import string
 import html
 from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -578,6 +579,33 @@ async def set_token(message: Message):
     )
 
 
+async def reset_daily_statistics():
+    """Background task to reset daily statistics at midnight."""
+    from src.database.statistics_operations import get_latest_statistics, reset_daily_if_needed
+    while True:
+        try:
+            # Wait until midnight
+            now = datetime.now()
+            # Calculate seconds until next midnight
+            tomorrow = now + timedelta(days=1)
+            midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+            seconds_until_midnight = (midnight - now).total_seconds()
+            
+            # Wait until midnight
+            await asyncio.sleep(seconds_until_midnight)
+            
+            # Reset daily statistics
+            stats = await get_latest_statistics()
+            if stats:
+                await reset_daily_if_needed(stats)
+            
+            # Wait a bit more to ensure we're past midnight
+            await asyncio.sleep(60)
+        except Exception as e:
+            logger.error(f"Error in daily reset task: {e}")
+            await asyncio.sleep(3600)  # Wait 1 hour before retrying
+
+
 async def main():
     # Create tables if they don't exist
     from src.models.user import User
@@ -586,6 +614,9 @@ async def main():
     
     User.metadata.create_all(engine)
     Statistics.metadata.create_all(engine)
+    
+    # Start the daily reset task
+    asyncio.create_task(reset_daily_statistics())
     
     await dp.start_polling(bot)
 
