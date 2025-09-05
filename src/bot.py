@@ -277,7 +277,7 @@ async def inline_search(query: InlineQuery):
     me = await bot.get_me()
 
     if not usr.get('ym_token'):
-        text = f'Для работы бота, мне нужен твой токен Яндекс Музыки. ' \
+        text = f'Для работы бота нужен твой токен Яндекс Музыки. ' \
             f'Пожалуйста, открой бота @{me.username} ' \
             f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
             f'<a href="https://yandex-music.readthedocs.io/en/main/token.html">🔮 Как получить токен 🔮</a>'
@@ -285,7 +285,7 @@ async def inline_search(query: InlineQuery):
         result_id = hashlib.md5(f'no-token:{random.randint(0, 99999999)}'.encode()).hexdigest()
         result = InlineQueryResultArticle(
             id=result_id,
-            title='Подключи токен Яндекс Музыки чтобы автоматически обнаруживать текущий трек',
+            title='Нажми чтобы подключить токен Яндекс Музыки',
             input_message_content=content
         )
         return await query.answer(
