@@ -273,26 +273,28 @@ async def inline_search(query: InlineQuery):
         'ym_id': usr_data.ym_id,
         'ym_token': usr_data.ym_token
     }
-    
+
     me = await bot.get_me()
+
+    if not usr.get('ym_token'):
+        text = f'Для работы бота, мне нужен твой токен Яндекс Музыки. ' \
+            f'Пожалуйста, открой бота @{me.username} ' \
+            f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
+            f'<a href="https://yandex-music.readthedocs.io/en/main/token.html">🔮 Как получить токен 🔮</a>'
+        content = InputTextMessageContent(message_text=text, parse_mode='html')
+        result_id = hashlib.md5(f'no-token:{random.randint(0, 99999999)}'.encode()).hexdigest()
+        result = InlineQueryResultArticle(
+            id=result_id,
+            title='Подключи токен Яндекс Музыки чтобы автоматически обнаруживать текущий трек',
+            input_message_content=content
+        )
+        return await query.answer(
+            results=[result],
+            cache_time=20,
+            is_personal=True
+        )
+    
     if query.query.strip() == '':
-        if not usr.get('ym_token'):
-            text = f'Чтобы обнаружить текущий трек, мне нужен твой токен Яндекс Музыки. ' \
-                   f'Пожалуйста, открой бота @{me.username} ' \
-                   f'и введи свой токен Яндекс Музыки с помощью команды <code>/token [токен]</code>.\n' \
-                   f'<a href="https://yandex-music.readthedocs.io/en/main/token.html">🔮 Как получить токен 🔮</a>'
-            content = InputTextMessageContent(message_text=text, parse_mode='html')
-            result_id = hashlib.md5(f'no-token:{random.randint(0, 99999999)}'.encode()).hexdigest()
-            result = InlineQueryResultArticle(
-                id=result_id,
-                title='Подключи токен Яндекс Музыки чтобы автоматически обнаруживать текущий трек',
-                input_message_content=content
-            )
-            return await query.answer(
-                results=[result],
-                cache_time=20,
-                is_personal=True
-            )
         
         # Update statistics for total requests
         await update_statistics(total_requests=1, daily_requests=1)
